@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Track — Last.fm fixture</title>
+  </head>
+  <body>
+    <h1>Track page fixture</h1>
+    <button class="love-button __LOVED_CLASS__" data-loved="__LOVED_ATTR__" type="button">
+      Love
+    </button>
+    <script>
+      const btn = document.querySelector(".love-button");
+      btn.addEventListener("click", () => {
+        const loved = btn.classList.toggle("love-button--loved");
+        btn.setAttribute("data-loved", loved ? "true" : "false");
+      });
+    </script>
+  </body>
+</html>

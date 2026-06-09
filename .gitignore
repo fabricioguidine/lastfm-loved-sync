@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Project secrets & state
+.env
+.env.local
+storage_state.json
+*.session
+
+# Generated reports
+*.xlsx
+out/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Playwright
+test-results/
+playwright-report/

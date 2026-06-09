@@ -1,0 +1,22 @@
+{
+  "lovedtracks": {
+    "track": [
+      {
+        "name": "Reckoner",
+        "url": "https://www.last.fm/music/Radiohead/_/Reckoner",
+        "artist": { "name": "Radiohead" }
+      },
+      {
+        "name": "Xtal",
+        "url": "https://www.last.fm/music/Aphex+Twin/_/Xtal",
+        "artist": { "name": "Aphex Twin" }
+      },
+      {
+        "name": "Old Favourite",
+        "url": "https://www.last.fm/music/Some+Artist/_/Old+Favourite",
+        "artist": { "name": "Some Artist" }
+      }
+    ],
+    "@attr": { "user": "testuser", "totalPages": "1", "page": "1", "total": "3" }
+  }
+}

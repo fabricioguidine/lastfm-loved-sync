@@ -1,0 +1,37 @@
+{
+  "toptracks": {
+    "track": [
+      {
+        "name": "Reckoner",
+        "playcount": "500",
+        "url": "https://www.last.fm/music/Radiohead/_/Reckoner",
+        "artist": { "name": "Radiohead" }
+      },
+      {
+        "name": "Roygbiv",
+        "playcount": "400",
+        "url": "https://www.last.fm/music/Boards+of+Canada/_/Roygbiv",
+        "artist": { "name": "Boards of Canada" }
+      },
+      {
+        "name": "Xtal",
+        "playcount": "300",
+        "url": "https://www.last.fm/music/Aphex+Twin/_/Xtal",
+        "artist": { "name": "Aphex Twin" }
+      },
+      {
+        "name": "Archangel",
+        "playcount": "200",
+        "url": "https://www.last.fm/music/Burial/_/Archangel",
+        "artist": { "name": "Burial" }
+      },
+      {
+        "name": "Angel Echoes",
+        "playcount": "100",
+        "url": "https://www.last.fm/music/Four+Tet/_/Angel+Echoes",
+        "artist": { "name": "Four Tet" }
+      }
+    ],
+    "@attr": { "user": "testuser", "totalPages": "1", "page": "1", "total": "5" }
+  }
+}
