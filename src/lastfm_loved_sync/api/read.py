@@ -124,15 +124,15 @@ class LastfmClient:
             rows = [rows]
         return [r["name"] for r in rows]
 
-    async def artist_top_tracks(self, name: str, *, limit: int = 50) -> list[Track]:
-        """An artist's most popular tracks (global ranking)."""
-        data = await self._call("artist.getTopTracks", artist=name, limit=limit)
-        rows = data.get("toptracks", {}).get("track", [])
+    async def tracks_in_period(self, from_ts: int, to_ts: int) -> list[Track]:
+        """Your tracks scrobbled in the [from_ts, to_ts] window, with play counts."""
+        data = await self._call("user.getWeeklyTrackChart", **{"from": from_ts, "to": to_ts})
+        rows = data.get("weeklytrackchart", {}).get("track", [])
         if isinstance(rows, dict):
             rows = [rows]
         return [
             Track(
-                artist=r.get("artist", {}).get("name", name),
+                artist=r["artist"]["#text"],
                 title=r["name"],
                 url=r["url"],
                 playcount=int(r.get("playcount", 0)),

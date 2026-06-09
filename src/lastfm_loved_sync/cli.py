@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import typer
@@ -13,7 +14,12 @@ from .bookmarks import bookmark_albums, bookmark_artists, fetch_top_albums, fetc
 from .browser import save_login
 from .config import Settings
 from .models import Album, Artist
-from .playlists import build_artist_playlists, build_genre_playlists
+from .playlists import (
+    build_artist_playlists,
+    build_genre_playlists,
+    build_loved_playlist,
+    build_period_playlist,
+)
 from .sync import apply_plan, apply_until_synced, fetch_tracks
 
 app = typer.Typer(
@@ -129,7 +135,7 @@ async def _sync(settings: Settings, min_plays: int | None, apply: bool, headful:
         clicks = await apply_until_synced(settings, threshold, progress=_progress)
     else:
         clicks = await apply_plan(settings, plan, headless=not headful, progress=_progress)
-    tui.console.print(f"[green]Done — {clicks} changes applied.[/green]")
+    tui.console.print(f"[green]Done: {clicks} changes applied.[/green]")
 
 
 @app.command()
@@ -181,7 +187,7 @@ async def _bookmark(
 
     tagged = await bookmark_artists(settings, found_artists, tag, progress=_progress)
     tagged += await bookmark_albums(settings, found_albums, tag, progress=_progress)
-    tui.console.print(f"[green]Done — tagged {tagged}.[/green]")
+    tui.console.print(f"[green]Done: tagged {tagged}.[/green]")
 
 
 playlist_app = typer.Typer(help="Generate local .m3u8 playlists (append-only on re-run).")
@@ -195,33 +201,81 @@ def _playlist_progress(name: str, added: int) -> None:
 @playlist_app.command("artists")
 def playlist_artists(
     tag: str = typer.Option("bookmarked", help="Build a playlist for each artist with this tag"),
-    top: int = typer.Option(50, help="Top tracks per artist"),
+    min_plays: int = typer.Option(
+        50, "--min-plays", "-m", help="Tracks with at least this many plays"
+    ),
     out: Path = typer.Option(Path("playlists"), help="Output directory"),
 ) -> None:
-    """One playlist per bookmarked artist of that artist's top tracks."""
+    """One playlist per favourite artist: your tracks by them at or above the threshold."""
     settings = _settings()
     result = asyncio.run(
-        build_artist_playlists(settings, out, tag=tag, top_n=top, progress=_playlist_progress)
+        build_artist_playlists(
+            settings, out, tag=tag, min_plays=min_plays, progress=_playlist_progress
+        )
     )
     if not result:
         tui.console.print(
-            f"[yellow]No artists tagged '{tag}'. Run `bookmark --apply` first.[/yellow]"
+            f"[yellow]No qualifying tracks for artists tagged '{tag}'. "
+            "Run `bookmark --apply` first.[/yellow]"
         )
     else:
-        tui.console.print(f"[green]Done — {len(result)} artist playlists in {out}.[/green]")
+        tui.console.print(f"[green]Done: {len(result)} artist playlists in {out}.[/green]")
 
 
 @playlist_app.command("genres")
 def playlist_genres(
-    min_plays: int = typer.Option(50, "--min-plays", "-m", help="Include tracks with >= plays"),
+    min_plays: int = typer.Option(
+        50, "--min-plays", "-m", help="Tracks with at least this many plays"
+    ),
+    top: int = typer.Option(5, help="Number of top genres to build"),
     out: Path = typer.Option(Path("playlists"), help="Output directory"),
 ) -> None:
-    """One playlist per genre (artist's top tag) of your tracks at/above the threshold."""
+    """One playlist for each of the top genres of your tracks at or above the threshold."""
     settings = _settings()
     result = asyncio.run(
-        build_genre_playlists(settings, out, min_plays=min_plays, progress=_playlist_progress)
+        build_genre_playlists(
+            settings, out, min_plays=min_plays, top=top, progress=_playlist_progress
+        )
     )
-    tui.console.print(f"[green]Done — {len(result)} genre playlists in {out}.[/green]")
+    tui.console.print(f"[green]Done: {len(result)} genre playlists in {out}.[/green]")
+
+
+@playlist_app.command("period")
+def playlist_period(
+    since: str = typer.Option("", help="Start date YYYY-MM-DD (default Jan 1 this year)"),
+    until: str = typer.Option("", help="End date YYYY-MM-DD (default today)"),
+    min_plays: int = typer.Option(
+        50, "--min-plays", "-m", help="Tracks with at least this many plays"
+    ),
+    out: Path = typer.Option(Path("playlists"), help="Output directory"),
+) -> None:
+    """One playlist of your tracks scrobbled at or above the threshold within a date range."""
+    settings = _settings()
+    start = date.fromisoformat(since) if since else date(date.today().year, 1, 1)
+    end = date.fromisoformat(until) if until else date.today()
+    from_ts = int(datetime(start.year, start.month, start.day, tzinfo=UTC).timestamp())
+    to_ts = int(datetime(end.year, end.month, end.day, tzinfo=UTC).timestamp())
+    added = asyncio.run(
+        build_period_playlist(
+            settings,
+            out,
+            from_ts=from_ts,
+            to_ts=to_ts,
+            min_plays=min_plays,
+            name=f"{start}-to-{end}",
+        )
+    )
+    tui.console.print(f"[green]Done: {added} tracks ({start} to {end}) in {out}.[/green]")
+
+
+@playlist_app.command("loved")
+def playlist_loved(
+    out: Path = typer.Option(Path("playlists"), help="Output directory"),
+) -> None:
+    """One playlist of all your loved (favourite) tracks."""
+    settings = _settings()
+    added = asyncio.run(build_loved_playlist(settings, out))
+    tui.console.print(f"[green]Done: {added} loved tracks in {out}.[/green]")
 
 
 __all__ = ["app"]

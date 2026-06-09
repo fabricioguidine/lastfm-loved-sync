@@ -36,7 +36,7 @@ def confirm_apply(plan: SyncPlan) -> bool:
 
 def render_plan(plan: SyncPlan) -> None:
     if plan.is_empty:
-        console.print("[green]Already in sync — nothing to do.[/green]")
+        console.print("[green]Already in sync, nothing to do.[/green]")
         return
     table = Table(title=f"Sync preview ({plan.criterion})")
     table.add_column("Action", style="bold")
@@ -63,6 +63,6 @@ def render_bookmarks(artists: list[Artist], albums: list[Album], tag: str) -> No
     for artist in artists:
         table.add_row("ARTIST", artist.name, str(artist.playcount))
     for album in albums:
-        table.add_row("ALBUM", f"{album.artist} — {album.title}", str(album.playcount))
+        table.add_row("ALBUM", f"{album.artist} - {album.title}", str(album.playcount))
     console.print(table)
     console.print(f"[green]{len(artists)} artists, {len(albums)} albums[/green]")

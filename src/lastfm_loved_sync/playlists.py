@@ -7,6 +7,7 @@ from pathlib import Path
 from .api import LastfmClient
 from .config import Settings
 from .models import Track
+from .normalize import name_key
 
 ProgressCb = Callable[[str, int], Awaitable[None] | None]
 
@@ -57,18 +58,26 @@ async def build_artist_playlists(
     out_dir: Path,
     *,
     tag: str = "bookmarked",
-    top_n: int = 50,
+    min_plays: int = 50,
     progress: ProgressCb | None = None,
 ) -> dict[str, int]:
-    """One playlist per bookmarked artist, holding that artist's top tracks."""
+    """One playlist per favourite (tagged) artist, holding your tracks by that
+    artist at or above ``min_plays`` scrobbles."""
     async with LastfmClient(settings) as client:
-        artists = await client.personal_tag_artists(tag)
-        result: dict[str, int] = {}
-        for name in artists:
-            tracks = await client.artist_top_tracks(name, limit=top_n)
-            added = merge_m3u(out_dir / f"artist-{_slug(name)}.m3u8", tracks)
-            result[name] = added
-            await _emit(progress, name, added)
+        favourites = {name_key(n): n for n in await client.personal_tag_artists(tag)}
+        top = await client.top_tracks(limit=1_000_000, min_plays=min_plays)
+    groups: dict[str, list[Track]] = {}
+    for track in top:
+        if track.playcount < min_plays:
+            continue
+        display = favourites.get(name_key(track.artist))
+        if display is not None:
+            groups.setdefault(display, []).append(track)
+    result: dict[str, int] = {}
+    for name, tracks in groups.items():
+        added = merge_m3u(out_dir / f"artist-{_slug(name)}.m3u8", tracks)
+        result[name] = added
+        await _emit(progress, name, added)
     return result
 
 
@@ -77,26 +86,53 @@ async def build_genre_playlists(
     out_dir: Path,
     *,
     min_plays: int = 50,
+    top: int = 5,
     progress: ProgressCb | None = None,
 ) -> dict[str, int]:
-    """One playlist per genre (artist's dominant tag) for tracks at/above ``min_plays``."""
+    """One playlist for each of the ``top`` genres (by total plays), holding your
+    tracks at or above ``min_plays`` scrobbles. Genre is the artist's dominant tag."""
     async with LastfmClient(settings) as client:
-        top = await client.top_tracks(limit=1_000_000, min_plays=min_plays)
+        tracks = await client.top_tracks(limit=1_000_000, min_plays=min_plays)
         tag_cache: dict[str, str] = {}
         groups: dict[str, list[Track]] = {}
-        for track in top:
+        for track in tracks:
             if track.playcount < min_plays:
                 continue
             key = track.artist.casefold()
             if key not in tag_cache:
                 tag_cache[key] = await client.artist_top_tag(track.artist) or "untagged"
             groups.setdefault(tag_cache[key], []).append(track)
+    ranked = sorted(groups, key=lambda g: sum(t.playcount for t in groups[g]), reverse=True)
     result: dict[str, int] = {}
-    for genre, tracks in groups.items():
-        added = merge_m3u(out_dir / f"genre-{_slug(genre)}.m3u8", tracks)
+    for genre in ranked[:top]:
+        added = merge_m3u(out_dir / f"genre-{_slug(genre)}.m3u8", groups[genre])
         result[genre] = added
         await _emit(progress, genre, added)
     return result
+
+
+async def build_period_playlist(
+    settings: Settings,
+    out_dir: Path,
+    *,
+    from_ts: int,
+    to_ts: int,
+    min_plays: int = 50,
+    name: str = "since",
+) -> int:
+    """One playlist of your tracks scrobbled at least ``min_plays`` times within
+    the [from_ts, to_ts] window."""
+    async with LastfmClient(settings) as client:
+        tracks = await client.tracks_in_period(from_ts, to_ts)
+    qualifying = [t for t in tracks if t.playcount >= min_plays]
+    return merge_m3u(out_dir / f"period-{_slug(name)}.m3u8", qualifying)
+
+
+async def build_loved_playlist(settings: Settings, out_dir: Path) -> int:
+    """One playlist of all your loved (favourite) tracks."""
+    async with LastfmClient(settings) as client:
+        loved = await client.loved_tracks()
+    return merge_m3u(out_dir / "loved.m3u8", loved)
 
 
 async def _emit(progress: ProgressCb | None, name: str, added: int) -> None:

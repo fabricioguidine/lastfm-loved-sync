@@ -8,7 +8,7 @@ Loves every Last.fm track at or above a scrobble threshold and unloves the ones 
 
 1. Read `user.getTopTracks` (ranked by play count) and `user.getLovedTracks`. With a threshold set, pagination stops once play counts drop below it.
 2. Build a two-way plan: tracks at or above the threshold that are not loved get loved; loved tracks below the threshold get unloved.
-3. Apply through Playwright using a saved login: each track page is opened and its love control toggled. Actions are idempotent — a click happens only when the state differs.
+3. Apply through Playwright using a saved login: each track page is opened and its love control toggled. Actions are idempotent: a click happens only when the state differs.
 
 ## Setup
 
@@ -39,7 +39,7 @@ uv run lastfm-loved-sync auth                  # opens a token URL; click "Yes, 
 uv run lastfm-loved-sync sync --min-plays 100 --apply
 ```
 
-`auth` saves a `LASTFM_SESSION_KEY` to `.env`. When that key is present, `sync --apply` uses signed `track.love`/`track.unlove` calls instead of the browser, and re-fetches and re-applies until the loved set actually matches the target — so a write that the API drops under load gets retried on the next round.
+`auth` saves a `LASTFM_SESSION_KEY` to `.env`. When that key is present, `sync --apply` uses signed `track.love`/`track.unlove` calls instead of the browser, and re-fetches and re-applies until the loved set actually matches the target, so a write that the API drops under load gets retried on the next round.
 
 When you're done, remove the saved credentials:
 
@@ -52,7 +52,7 @@ To delete the API application itself, go to https://www.last.fm/api/accounts.
 
 ### Bookmark artists and albums
 
-Last.fm has no "love" for artists or albums — the closest equivalent is a personal tag. `bookmark` tags every artist at or above a scrobble threshold, and every album at or above a play threshold, with a tag of your choice (requires `auth`):
+Last.fm has no "love" for artists or albums; the closest equivalent is a personal tag. `bookmark` tags every artist at or above a scrobble threshold, and every album at or above a play threshold, with a tag of your choice (requires `auth`):
 
 ```bash
 uv run lastfm-loved-sync bookmark --min-artist-plays 1000 --min-album-plays 1000   # preview
@@ -63,22 +63,24 @@ Like `sync`, it re-checks each item after tagging and re-applies any tag the API
 
 ### Local playlists
 
-Last.fm's API can't create playlists, so these are written as local `.m3u8` files (playable in VLC, foobar2000, etc.). Re-running is append-only: existing entries are kept and only new tracks are added.
+Last.fm only lets paid (Pro) accounts hand-add tracks to a playlist, so curated playlists are written as local `.m3u8` files (playable in VLC, foobar2000, etc.). Re-running is append-only: existing entries are kept and only new tracks are added. Every threshold is a flag you can change.
 
 ```bash
-uv run lastfm-loved-sync playlist artists                 # one playlist per "bookmarked" artist (their top tracks)
-uv run lastfm-loved-sync playlist genres --min-plays 50   # one playlist per genre, for tracks with >=50 plays
+uv run lastfm-loved-sync playlist artists --min-plays 50      # per favourite artist: your tracks by them with >=50 plays
+uv run lastfm-loved-sync playlist genres --min-plays 50 --top 5   # top 5 genres, tracks with >=50 plays
+uv run lastfm-loved-sync playlist period --min-plays 50           # tracks with >=50 plays from Jan 1 to today
+uv run lastfm-loved-sync playlist loved                           # all your loved (favourite) tracks
 ```
 
-`playlist artists` sources artists from a personal tag (default `bookmarked` — run `bookmark --apply` first). `playlist genres` groups your tracks by each artist's dominant Last.fm tag. Both write to `./playlists/` by default (`--out` to change).
+`playlist artists` sources favourites from a personal tag (default `bookmarked`, so run `bookmark --apply` first) and fills each playlist with your own plays of that artist. `playlist genres` groups your tracks by each artist's dominant Last.fm tag and keeps the top genres by play count. `playlist period` takes `--since` / `--until` dates (default Jan 1 this year through today). All write to `./playlists/` by default (`--out` to change).
 
 ## Architecture
 
 ```
 src/lastfm_loved_sync/
   api/            Last.fm HTTP clients
-    read.py       LastfmClient — top tracks/artists/albums, loved tracks, tags
-    write.py      LastfmWriteClient — token auth, track.love/unlove, artist/album tagging
+    read.py       LastfmClient: top tracks/artists/albums, loved tracks, tags
+    write.py      LastfmWriteClient: token auth, track.love/unlove, artist/album tagging
     sign.py       request signing;  resilience.py  retry on transport + 5xx errors
   analysis.py     build the two-way love/unlove plan from a threshold
   sync.py         fetch + plan + apply (browser or converging API path)
