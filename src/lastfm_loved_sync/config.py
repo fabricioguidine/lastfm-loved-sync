@@ -21,9 +21,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="LASTFM_", extra="ignore")
 
     api_key: str = Field(default="", description="Last.fm read API key")
+    shared_secret: str = Field(default="", description="Last.fm shared secret for signed writes")
+    session_key: str = Field(default="", description="Authenticated session key from `auth`")
     user: str = Field(default="", description="Last.fm username")
     storage_state: Path = Field(default=Path("storage_state.json"))
     api_base: str = "https://ws.audioscrobbler.com/2.0/"
+    auth_url: str = "https://www.last.fm/api/auth/"
     login_url: str = "https://www.last.fm/login"
     request_timeout: float = 20.0
     selectors: Selectors = Field(default_factory=Selectors)

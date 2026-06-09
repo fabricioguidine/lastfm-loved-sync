@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from pathlib import Path
 
 import typer
 
 from . import tui
 from .analysis import build_plan
+from .api_apply import apply_plan_api, fetch_session_key, request_token
 from .browser import save_login
 from .config import Settings
 from .sync import apply_plan, fetch_tracks
@@ -45,6 +47,27 @@ def login() -> None:
     tui.console.print(f"[green]Session saved to {path}[/green]")
 
 
+def _persist_session_key(key: str, env_file: Path = Path(".env")) -> None:
+    lines = env_file.read_text().splitlines() if env_file.exists() else []
+    lines = [ln for ln in lines if not ln.startswith("LASTFM_SESSION_KEY=")]
+    lines.append(f"LASTFM_SESSION_KEY={key}")
+    env_file.write_text("\n".join(lines) + "\n")
+
+
+@app.command()
+def auth() -> None:
+    """Authorize via the Last.fm token flow and save a session key to .env."""
+    settings = Settings()
+    if not settings.api_key or not settings.shared_secret:
+        raise typer.BadParameter("Set LASTFM_API_KEY and LASTFM_SHARED_SECRET in .env first.")
+    token, url = asyncio.run(request_token(settings))
+    tui.console.print(f"Open this URL and click [bold]Yes, allow access[/bold]:\n\n  {url}\n")
+    typer.confirm("Authorized?", abort=True)
+    key = asyncio.run(fetch_session_key(settings, token))
+    _persist_session_key(key)
+    tui.console.print("[green]Session key saved to .env. You can now run `sync --apply`.[/green]")
+
+
 @app.command()
 def sync(
     min_plays: int | None = typer.Option(
@@ -75,7 +98,10 @@ async def _sync(settings: Settings, min_plays: int | None, apply: bool, headful:
         mark = "✓" if changed else "·"
         tui.console.print(f"  {mark} {change.action.value} {change.track}")
 
-    clicks = await apply_plan(settings, plan, headless=not headful, progress=_progress)
+    if settings.session_key:
+        clicks = await apply_plan_api(settings, plan, progress=_progress)
+    else:
+        clicks = await apply_plan(settings, plan, headless=not headful, progress=_progress)
     tui.console.print(f"[green]Done — {clicks} changes applied.[/green]")
 
 

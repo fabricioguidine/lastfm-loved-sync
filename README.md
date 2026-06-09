@@ -30,6 +30,17 @@ uv run lastfm-loved-sync sync --min-plays 100 --apply
 
 `--min-plays` is inclusive (100 means 100 or more). Run `sync` with no flag to be prompted. Dry-run prints the full love/unlove list and changes nothing.
 
+### Apply via the official API (no browser)
+
+Instead of the Playwright session, you can love/unlove through the authenticated Last.fm API. Set `LASTFM_SHARED_SECRET` in `.env`, then authorize once:
+
+```bash
+uv run lastfm-loved-sync auth                  # opens a token URL; click "Yes, allow access"
+uv run lastfm-loved-sync sync --min-plays 100 --apply
+```
+
+`auth` saves a `LASTFM_SESSION_KEY` to `.env`. When that key is present, `sync --apply` uses signed `track.love`/`track.unlove` calls instead of the browser.
+
 ## Development
 
 ```bash
