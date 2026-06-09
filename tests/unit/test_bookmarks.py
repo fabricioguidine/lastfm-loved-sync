@@ -69,3 +69,21 @@ async def test_bookmark_artists_requires_session(tmp_path, top_artists_json):
     )
     with pytest.raises(RuntimeError, match="session key"):
         await bookmark_artists(settings, [Artist(name="X", playcount=2000)], "bookmarked")
+
+
+@respx.mock
+async def test_bookmark_skips_unresolvable_item_and_continues(write_settings):
+    from lastfm_loved_sync.models import Artist
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            params = dict(httpx.QueryParams(request.content.decode()))
+            if params.get("artist") == "Ghost":  # Last.fm can't resolve this one
+                return httpx.Response(200, json={"error": 6, "message": "Artist not found"})
+            return httpx.Response(200, json={})
+        return httpx.Response(200, json={"tags": {"tag": [{"name": "bookmarked"}]}})
+
+    respx.route(host="ws.audioscrobbler.com").mock(side_effect=respond)
+    artists = [Artist(name="Real", playcount=2000), Artist(name="Ghost", playcount=2000)]
+    count = await bookmark_artists(write_settings, artists, "bookmarked")
+    assert count == 1  # the unresolvable artist is skipped, the real one still tagged

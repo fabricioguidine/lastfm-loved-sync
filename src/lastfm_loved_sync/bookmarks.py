@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from .api import LastfmClient, LastfmWriteClient
+from .api import LastfmClient, LastfmError, LastfmWriteClient
 from .config import Settings
 from .models import Album, Artist
 
@@ -29,14 +29,17 @@ async def bookmark_artists(
         return 0
     _require_session(settings)
     wanted = tag.casefold()
+    tagged = 0
     async with LastfmWriteClient(settings) as writer, LastfmClient(settings) as reader:
         for artist in artists:
-            await writer.tag_artist(artist.name, tag)
-            await _emit(progress, artist.name)
+            if await _safe_tag(writer.tag_artist(artist.name, tag)):
+                tagged += 1
+                await _emit(progress, artist.name)
         for artist in artists:
-            if wanted not in await reader.artist_tags(artist.name):
-                await writer.tag_artist(artist.name, tag)
-    return len(artists)
+            tags = await _safe_read(reader.artist_tags(artist.name))
+            if tags is not None and wanted not in tags:
+                await _safe_tag(writer.tag_artist(artist.name, tag))
+    return tagged
 
 
 async def bookmark_albums(
@@ -47,19 +50,38 @@ async def bookmark_albums(
         return 0
     _require_session(settings)
     wanted = tag.casefold()
+    tagged = 0
     async with LastfmWriteClient(settings) as writer, LastfmClient(settings) as reader:
         for album in albums:
-            await writer.tag_album(album.artist, album.title, tag)
-            await _emit(progress, str(album))
+            if await _safe_tag(writer.tag_album(album.artist, album.title, tag)):
+                tagged += 1
+                await _emit(progress, str(album))
         for album in albums:
-            if wanted not in await reader.album_tags(album.artist, album.title):
-                await writer.tag_album(album.artist, album.title, tag)
-    return len(albums)
+            tags = await _safe_read(reader.album_tags(album.artist, album.title))
+            if tags is not None and wanted not in tags:
+                await _safe_tag(writer.tag_album(album.artist, album.title, tag))
+    return tagged
 
 
 def _require_session(settings: Settings) -> None:
     if not settings.session_key:
         raise RuntimeError("No session key. Run `lastfm-loved-sync auth` first.")
+
+
+async def _safe_tag(coro: Awaitable[None]) -> bool:
+    """A single tag write; a track/album Last.fm can't resolve is skipped, not fatal."""
+    try:
+        await coro
+        return True
+    except LastfmError:
+        return False
+
+
+async def _safe_read(coro: Awaitable[set[str]]) -> set[str] | None:
+    try:
+        return await coro
+    except LastfmError:
+        return None
 
 
 async def _emit(progress: BookmarkCb | None, name: str) -> None:
