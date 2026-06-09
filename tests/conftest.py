@@ -27,6 +27,16 @@ def loved_tracks_json() -> dict[str, Any]:
 
 
 @pytest.fixture
+def top_artists_json() -> dict[str, Any]:
+    return _load("top_artists.json")
+
+
+@pytest.fixture
+def top_albums_json() -> dict[str, Any]:
+    return _load("top_albums.json")
+
+
+@pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(
         api_key="test-key",

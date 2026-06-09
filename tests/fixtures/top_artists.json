@@ -1,0 +1,10 @@
+{
+  "topartists": {
+    "artist": [
+      { "name": "Lady Gaga", "playcount": "1500", "url": "https://www.last.fm/music/Lady+Gaga" },
+      { "name": "Mitski", "playcount": "1200", "url": "https://www.last.fm/music/Mitski" },
+      { "name": "Radiohead", "playcount": "800", "url": "https://www.last.fm/music/Radiohead" }
+    ],
+    "@attr": { "user": "testuser", "totalPages": "1", "page": "1" }
+  }
+}

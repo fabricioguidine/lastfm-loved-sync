@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/fabricioguidine/lastfm-loved-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/fabricioguidine/lastfm-loved-sync/actions/workflows/ci.yml) [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Loves every Last.fm track at or above a scrobble threshold and unloves the ones below it. Play counts and loved tracks are read through the official Last.fm API; the love/unlove actions run through a real browser session driven by Playwright. Dry-run by default.
+Loves every Last.fm track at or above a scrobble threshold and unloves the ones below it, and tags heavily-played artists and albums with a personal tag. Reads go through the official Last.fm API; writes run either through the authenticated API or a real browser session driven by Playwright. Dry-run by default.
 
 ## How it works
 
@@ -50,6 +50,34 @@ uv run lastfm-loved-sync logout --purge    # also delete the API key and shared 
 
 To delete the API application itself, go to https://www.last.fm/api/accounts.
 
+### Bookmark artists and albums
+
+Last.fm has no "love" for artists or albums — the closest equivalent is a personal tag. `bookmark` tags every artist at or above a scrobble threshold, and every album at or above a play threshold, with a tag of your choice (requires `auth`):
+
+```bash
+uv run lastfm-loved-sync bookmark --min-artist-plays 1000 --min-album-plays 1000   # preview
+uv run lastfm-loved-sync bookmark --tag bookmarked --apply
+```
+
+Like `sync`, it re-checks each item after tagging and re-applies any tag the API dropped.
+
+## Architecture
+
+```
+src/lastfm_loved_sync/
+  api/            Last.fm HTTP clients
+    read.py       LastfmClient — top tracks/artists/albums, loved tracks, tags
+    write.py      LastfmWriteClient — token auth, track.love/unlove, artist/album tagging
+    sign.py       request signing;  resilience.py  retry on transport + 5xx errors
+  analysis.py     build the two-way love/unlove plan from a threshold
+  sync.py         fetch + plan + apply (browser or converging API path)
+  bookmarks.py    fetch + tag artists/albums above a threshold
+  api_apply.py    token-authorize flow and API plan application
+  browser.py      Playwright love-button automation
+  cli.py          Typer commands;  tui.py  rich tables and prompts
+  config.py       env-backed settings;  models.py  Track/Artist/Album;  normalize.py  identity keys
+```
+
 ## Development
 
 ```bash
@@ -59,7 +87,7 @@ uv run pytest                 # unit + e2e
 uv run pytest -m "not e2e"    # skip the browser tests
 ```
 
-The e2e suite runs the read-plan-write path against a mocked API and a local love-button fixture in a real Chromium; it never touches a live account.
+The e2e suite never touches a live account: the browser path runs against a mocked API and a local love-button fixture in a real Chromium, and the API path runs against a stateful in-memory Last.fm that deliberately drops the first write to prove the convergence and tag re-verify logic recovers.
 
 ## Notes
 

@@ -4,8 +4,8 @@ import httpx
 import pytest
 import respx
 
+from lastfm_loved_sync.api import LastfmError, LastfmWriteClient, sign
 from lastfm_loved_sync.config import Settings
-from lastfm_loved_sync.lastfm_api import LastfmError, LastfmWriteClient, sign
 from lastfm_loved_sync.models import Track
 
 

@@ -9,8 +9,10 @@ import typer
 from . import tui
 from .analysis import build_plan
 from .api_apply import fetch_session_key, request_token
+from .bookmarks import bookmark_albums, bookmark_artists, fetch_top_albums, fetch_top_artists
 from .browser import save_login
 from .config import Settings
+from .models import Album, Artist
 from .sync import apply_plan, apply_until_synced, fetch_tracks
 
 app = typer.Typer(
@@ -127,6 +129,58 @@ async def _sync(settings: Settings, min_plays: int | None, apply: bool, headful:
     else:
         clicks = await apply_plan(settings, plan, headless=not headful, progress=_progress)
     tui.console.print(f"[green]Done — {clicks} changes applied.[/green]")
+
+
+@app.command()
+def bookmark(
+    tag: str = typer.Option("bookmarked", help="Personal tag to apply"),
+    min_artist_plays: int = typer.Option(
+        1000, "--min-artist-plays", help="Tag artists with at least this many scrobbles"
+    ),
+    min_album_plays: int = typer.Option(
+        1000, "--min-album-plays", help="Tag albums with at least this many plays"
+    ),
+    artists: bool = typer.Option(True, help="Include artists"),
+    albums: bool = typer.Option(True, help="Include albums"),
+    apply: bool = typer.Option(False, "--apply", help="Apply tags (default: dry-run)"),
+) -> None:
+    """Tag heavily-played artists/albums with a personal tag.
+
+    Last.fm has no artist/album 'love'; a personal tag is the closest equivalent.
+    """
+    settings = _settings()
+    asyncio.run(_bookmark(settings, tag, min_artist_plays, min_album_plays, artists, albums, apply))
+
+
+async def _bookmark(
+    settings: Settings,
+    tag: str,
+    min_artist_plays: int,
+    min_album_plays: int,
+    do_artists: bool,
+    do_albums: bool,
+    apply: bool,
+) -> None:
+    found_artists: list[Artist] = (
+        await fetch_top_artists(settings, min_artist_plays) if do_artists else []
+    )
+    found_albums: list[Album] = (
+        await fetch_top_albums(settings, min_album_plays) if do_albums else []
+    )
+    tui.render_bookmarks(found_artists, found_albums, tag)
+    if (not found_artists and not found_albums) or not apply:
+        if not apply and (found_artists or found_albums):
+            tui.console.print("[yellow]Dry-run. Re-run with --apply to tag.[/yellow]")
+        return
+    if not settings.session_key:
+        raise typer.BadParameter("No session key. Run `auth` first.")
+
+    def _progress(name: str) -> None:
+        tui.console.print(f"  ✓ {name}")
+
+    tagged = await bookmark_artists(settings, found_artists, tag, progress=_progress)
+    tagged += await bookmark_albums(settings, found_albums, tag, progress=_progress)
+    tui.console.print(f"[green]Done — tagged {tagged}.[/green]")
 
 
 __all__ = ["app"]

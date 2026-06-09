@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from .analysis import build_plan
+from .api import LastfmClient
 from .api_apply import apply_plan_api
 from .browser import LoveAutomation, open_context
 from .config import Settings
-from .lastfm_api import LastfmClient
 from .models import Action, PlannedChange, SyncPlan, Track
 
 ProgressCb = Callable[[PlannedChange, bool], Awaitable[None] | None]
@@ -37,16 +37,24 @@ async def apply_until_synced(
 
     A single pass can leave changes unapplied when the Last.fm API flakes (a
     write returns OK but doesn't stick). Each round re-fetches the live loved
-    set and re-applies the diff, stopping when nothing remains or a round makes
-    no progress (an unmatchable track would otherwise loop forever).
+    set and re-applies the diff, stopping when nothing remains or two rounds in
+    a row fail to shrink the plan (one stalled round may just be a fully-dropped
+    batch worth retrying; a persistently unmatchable track must not loop forever).
     """
     total = 0
     previous: int | None = None
+    stalls = 0
     for _ in range(max_rounds):
         plan = await compute_plan(settings, min_plays)
         remaining = len(plan.changes)
-        if remaining == 0 or (previous is not None and remaining >= previous):
+        if remaining == 0:
             break
+        if previous is not None and remaining >= previous:
+            stalls += 1
+            if stalls >= 2:
+                break
+        else:
+            stalls = 0
         previous = remaining
         total += await apply_plan_api(settings, plan, progress=progress)
     return total

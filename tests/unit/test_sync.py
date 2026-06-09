@@ -47,7 +47,9 @@ async def test_apply_until_synced_stops_when_no_progress(settings: Settings, mon
 
     monkeypatch.setattr(sync_module, "apply_plan_api", fake_apply)
     await apply_until_synced(settings, 100, max_rounds=5)
-    assert len(rounds) == 1  # second round sees no progress and bails
+    # One retry is allowed (a stalled round may be a dropped batch); the second
+    # consecutive no-progress round bails. So it applies exactly twice.
+    assert len(rounds) == 2
 
 
 async def _pop(seq):

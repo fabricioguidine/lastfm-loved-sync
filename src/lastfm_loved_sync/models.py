@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
-from .normalize import track_key
+from .normalize import name_key, track_key
 
 
 class Track(BaseModel):
@@ -13,6 +13,31 @@ class Track(BaseModel):
     url: str
     playcount: int = 0
     loved: bool = False
+
+    @property
+    def key(self) -> tuple[str, str]:
+        return track_key(self.artist, self.title)
+
+    def __str__(self) -> str:
+        return f"{self.artist} - {self.title}"
+
+
+class Artist(BaseModel):
+    name: str
+    playcount: int = 0
+
+    @property
+    def key(self) -> str:
+        return name_key(self.name)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Album(BaseModel):
+    artist: str
+    title: str
+    playcount: int = 0
 
     @property
     def key(self) -> tuple[str, str]:

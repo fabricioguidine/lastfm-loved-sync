@@ -12,6 +12,11 @@ def track_key(artist: str, title: str) -> tuple[str, str]:
     return (_norm(artist), _norm(title))
 
 
+def name_key(value: str) -> str:
+    """Normalized identity for a single name (artist, tag, genre)."""
+    return _norm(value)
+
+
 def _norm(value: str) -> str:
     folded = unicodedata.normalize("NFKC", value).casefold().strip()
     return " ".join(folded.split())

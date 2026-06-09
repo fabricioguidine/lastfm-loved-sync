@@ -4,7 +4,7 @@ import questionary
 from rich.console import Console
 from rich.table import Table
 
-from .models import SyncPlan
+from .models import Album, Artist, SyncPlan
 
 console = Console()
 
@@ -50,3 +50,19 @@ def render_plan(plan: SyncPlan) -> None:
     console.print(
         f"[green]+{len(plan.to_love)} love[/green]  [red]-{len(plan.to_unlove)} unlove[/red]"
     )
+
+
+def render_bookmarks(artists: list[Artist], albums: list[Album], tag: str) -> None:
+    if not artists and not albums:
+        console.print("[green]Nothing above the threshold to tag.[/green]")
+        return
+    table = Table(title=f"Bookmark preview (tag: {tag})")
+    table.add_column("Kind", style="bold")
+    table.add_column("Name")
+    table.add_column("Plays", justify="right")
+    for artist in artists:
+        table.add_row("ARTIST", artist.name, str(artist.playcount))
+    for album in albums:
+        table.add_row("ALBUM", f"{album.artist} — {album.title}", str(album.playcount))
+    console.print(table)
+    console.print(f"[green]{len(artists)} artists, {len(albums)} albums[/green]")

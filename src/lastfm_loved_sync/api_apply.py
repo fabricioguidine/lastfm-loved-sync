@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+from .api import LastfmWriteClient
 from .config import Settings
-from .lastfm_api import LastfmWriteClient
 from .models import Action, PlannedChange, SyncPlan
 
 ProgressCb = Callable[[PlannedChange, bool], Awaitable[None] | None]

@@ -1,0 +1,19 @@
+{
+  "topalbums": {
+    "album": [
+      {
+        "name": "Chromatica",
+        "artist": { "name": "Lady Gaga" },
+        "playcount": "1100",
+        "url": "https://www.last.fm/music/Lady+Gaga/Chromatica"
+      },
+      {
+        "name": "Puberty 2",
+        "artist": { "name": "Mitski" },
+        "playcount": "900",
+        "url": "https://www.last.fm/music/Mitski/Puberty+2"
+      }
+    ],
+    "@attr": { "user": "testuser", "totalPages": "1", "page": "1" }
+  }
+}

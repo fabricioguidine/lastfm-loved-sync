@@ -2,8 +2,8 @@ import httpx
 import pytest
 import respx
 
+from lastfm_loved_sync.api import LastfmClient, LastfmError
 from lastfm_loved_sync.config import Settings
-from lastfm_loved_sync.lastfm_api import LastfmClient, LastfmError
 
 
 @respx.mock
