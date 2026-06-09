@@ -1,6 +1,6 @@
 # lastfm-loved-sync
 
-[![CI](https://github.com/fabricioguidine/lastfm-loved-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/fabricioguidine/lastfm-loved-sync/actions/workflows/ci.yml) [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Loves every Last.fm track at or above a scrobble threshold and unloves the ones below it. Play counts and loved tracks are read through the official Last.fm API; the love/unlove actions run through a real browser session driven by Playwright. Dry-run by default.
 
