@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/fabricioguidine/lastfm-loved-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/fabricioguidine/lastfm-loved-sync/actions/workflows/ci.yml) [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Loves every Last.fm track at or above a scrobble threshold and unloves the ones below it, and tags heavily-played artists and albums with a personal tag. Reads go through the official Last.fm API; writes run either through the authenticated API or a real browser session driven by Playwright. Dry-run by default.
+Loves every Last.fm track at or above a scrobble threshold and unloves the ones below it, tags heavily-played artists and albums with a personal tag, and generates local `.m3u8` playlists from your library. Reads go through the official Last.fm API; writes run either through the authenticated API or a real browser session driven by Playwright. Dry-run by default.
 
 ## How it works
 
@@ -61,6 +61,17 @@ uv run lastfm-loved-sync bookmark --tag bookmarked --apply
 
 Like `sync`, it re-checks each item after tagging and re-applies any tag the API dropped.
 
+### Local playlists
+
+Last.fm's API can't create playlists, so these are written as local `.m3u8` files (playable in VLC, foobar2000, etc.). Re-running is append-only: existing entries are kept and only new tracks are added.
+
+```bash
+uv run lastfm-loved-sync playlist artists                 # one playlist per "bookmarked" artist (their top tracks)
+uv run lastfm-loved-sync playlist genres --min-plays 50   # one playlist per genre, for tracks with >=50 plays
+```
+
+`playlist artists` sources artists from a personal tag (default `bookmarked` — run `bookmark --apply` first). `playlist genres` groups your tracks by each artist's dominant Last.fm tag. Both write to `./playlists/` by default (`--out` to change).
+
 ## Architecture
 
 ```
@@ -72,6 +83,7 @@ src/lastfm_loved_sync/
   analysis.py     build the two-way love/unlove plan from a threshold
   sync.py         fetch + plan + apply (browser or converging API path)
   bookmarks.py    fetch + tag artists/albums above a threshold
+  playlists.py    generate local .m3u8 playlists (append-only on re-run)
   api_apply.py    token-authorize flow and API plan application
   browser.py      Playwright love-button automation
   cli.py          Typer commands;  tui.py  rich tables and prompts

@@ -13,6 +13,7 @@ from .bookmarks import bookmark_albums, bookmark_artists, fetch_top_albums, fetc
 from .browser import save_login
 from .config import Settings
 from .models import Album, Artist
+from .playlists import build_artist_playlists, build_genre_playlists
 from .sync import apply_plan, apply_until_synced, fetch_tracks
 
 app = typer.Typer(
@@ -181,6 +182,46 @@ async def _bookmark(
     tagged = await bookmark_artists(settings, found_artists, tag, progress=_progress)
     tagged += await bookmark_albums(settings, found_albums, tag, progress=_progress)
     tui.console.print(f"[green]Done — tagged {tagged}.[/green]")
+
+
+playlist_app = typer.Typer(help="Generate local .m3u8 playlists (append-only on re-run).")
+app.add_typer(playlist_app, name="playlist")
+
+
+def _playlist_progress(name: str, added: int) -> None:
+    tui.console.print(f"  {name}: +{added}" if added else f"  {name}: up to date")
+
+
+@playlist_app.command("artists")
+def playlist_artists(
+    tag: str = typer.Option("bookmarked", help="Build a playlist for each artist with this tag"),
+    top: int = typer.Option(50, help="Top tracks per artist"),
+    out: Path = typer.Option(Path("playlists"), help="Output directory"),
+) -> None:
+    """One playlist per bookmarked artist of that artist's top tracks."""
+    settings = _settings()
+    result = asyncio.run(
+        build_artist_playlists(settings, out, tag=tag, top_n=top, progress=_playlist_progress)
+    )
+    if not result:
+        tui.console.print(
+            f"[yellow]No artists tagged '{tag}'. Run `bookmark --apply` first.[/yellow]"
+        )
+    else:
+        tui.console.print(f"[green]Done — {len(result)} artist playlists in {out}.[/green]")
+
+
+@playlist_app.command("genres")
+def playlist_genres(
+    min_plays: int = typer.Option(50, "--min-plays", "-m", help="Include tracks with >= plays"),
+    out: Path = typer.Option(Path("playlists"), help="Output directory"),
+) -> None:
+    """One playlist per genre (artist's top tag) of your tracks at/above the threshold."""
+    settings = _settings()
+    result = asyncio.run(
+        build_genre_playlists(settings, out, min_plays=min_plays, progress=_playlist_progress)
+    )
+    tui.console.print(f"[green]Done — {len(result)} genre playlists in {out}.[/green]")
 
 
 __all__ = ["app"]

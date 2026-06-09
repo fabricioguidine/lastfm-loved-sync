@@ -116,6 +116,38 @@ class LastfmClient:
         data = await self._call("artist.getTags", artist=name)
         return _tag_names(data.get("tags", {}))
 
+    async def personal_tag_artists(self, tag: str) -> list[str]:
+        """Artist names the user has tagged with ``tag``."""
+        data = await self._call("user.getPersonalTags", tag=tag, taggingType="artist", limit=1000)
+        rows = data.get("taggings", {}).get("artists", {}).get("artist", [])
+        if isinstance(rows, dict):
+            rows = [rows]
+        return [r["name"] for r in rows]
+
+    async def artist_top_tracks(self, name: str, *, limit: int = 50) -> list[Track]:
+        """An artist's most popular tracks (global ranking)."""
+        data = await self._call("artist.getTopTracks", artist=name, limit=limit)
+        rows = data.get("toptracks", {}).get("track", [])
+        if isinstance(rows, dict):
+            rows = [rows]
+        return [
+            Track(
+                artist=r.get("artist", {}).get("name", name),
+                title=r["name"],
+                url=r["url"],
+                playcount=int(r.get("playcount", 0)),
+            )
+            for r in rows
+        ]
+
+    async def artist_top_tag(self, name: str) -> str | None:
+        """The artist's dominant Last.fm tag, used as a genre. None if untagged."""
+        data = await self._call("artist.getTopTags", artist=name)
+        rows = data.get("toptags", {}).get("tag", [])
+        if isinstance(rows, dict):
+            rows = [rows]
+        return rows[0]["name"] if rows else None
+
     async def album_tags(self, artist: str, album: str) -> set[str]:
         """The user's own tags on an album (casefolded)."""
         data = await self._call("album.getTags", artist=artist, album=album)

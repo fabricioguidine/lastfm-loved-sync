@@ -17,9 +17,11 @@ build/
 storage_state.json
 *.session
 
-# Generated reports
+# Generated reports & playlists
 *.xlsx
 out/
+playlists/
+*.m3u8
 
 # OS / editors
 .DS_Store
