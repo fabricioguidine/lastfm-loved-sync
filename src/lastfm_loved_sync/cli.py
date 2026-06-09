@@ -8,10 +8,10 @@ import typer
 
 from . import tui
 from .analysis import build_plan
-from .api_apply import apply_plan_api, fetch_session_key, request_token
+from .api_apply import fetch_session_key, request_token
 from .browser import save_login
 from .config import Settings
-from .sync import apply_plan, fetch_tracks
+from .sync import apply_plan, apply_until_synced, fetch_tracks
 
 app = typer.Typer(
     add_completion=False,
@@ -68,6 +68,30 @@ def auth() -> None:
     tui.console.print("[green]Session key saved to .env. You can now run `sync --apply`.[/green]")
 
 
+_SECRET_KEYS = ("LASTFM_SESSION_KEY", "LASTFM_SHARED_SECRET", "LASTFM_API_KEY")
+
+
+@app.command()
+def logout(
+    purge: bool = typer.Option(
+        False, "--purge", help="Also remove the API key and shared secret, not just the session key"
+    ),
+    env_file: Path = Path(".env"),
+) -> None:
+    """Delete saved credentials from .env (the session key, or everything with --purge)."""
+    targets = _SECRET_KEYS if purge else ("LASTFM_SESSION_KEY",)
+    if env_file.exists():
+        kept = [ln for ln in env_file.read_text().splitlines() if not ln.startswith(targets)]
+        env_file.write_text("\n".join(kept) + "\n" if kept else "")
+    Settings().storage_state.unlink(missing_ok=True)
+    tui.console.print(f"[green]Removed {', '.join(targets)} from {env_file}.[/green]")
+    if purge:
+        tui.console.print(
+            "Also delete the API application itself at "
+            "[bold]https://www.last.fm/api/accounts[/bold]."
+        )
+
+
 @app.command()
 def sync(
     min_plays: int | None = typer.Option(
@@ -99,7 +123,7 @@ async def _sync(settings: Settings, min_plays: int | None, apply: bool, headful:
         tui.console.print(f"  {mark} {change.action.value} {change.track}")
 
     if settings.session_key:
-        clicks = await apply_plan_api(settings, plan, progress=_progress)
+        clicks = await apply_until_synced(settings, threshold, progress=_progress)
     else:
         clicks = await apply_plan(settings, plan, headless=not headful, progress=_progress)
     tui.console.print(f"[green]Done — {clicks} changes applied.[/green]")

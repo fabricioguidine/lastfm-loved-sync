@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from .analysis import build_plan
+from .api_apply import apply_plan_api
 from .browser import LoveAutomation, open_context
 from .config import Settings
 from .lastfm_api import LastfmClient
@@ -23,6 +24,32 @@ async def fetch_tracks(
 async def compute_plan(settings: Settings, min_plays: int) -> SyncPlan:
     top, loved = await fetch_tracks(settings, top_limit=1_000_000, min_plays=min_plays)
     return build_plan(top, loved, min_plays)
+
+
+async def apply_until_synced(
+    settings: Settings,
+    min_plays: int,
+    *,
+    max_rounds: int = 8,
+    progress: ProgressCb | None = None,
+) -> int:
+    """Apply via the API and re-verify until the loved set matches the target.
+
+    A single pass can leave changes unapplied when the Last.fm API flakes (a
+    write returns OK but doesn't stick). Each round re-fetches the live loved
+    set and re-applies the diff, stopping when nothing remains or a round makes
+    no progress (an unmatchable track would otherwise loop forever).
+    """
+    total = 0
+    previous: int | None = None
+    for _ in range(max_rounds):
+        plan = await compute_plan(settings, min_plays)
+        remaining = len(plan.changes)
+        if remaining == 0 or (previous is not None and remaining >= previous):
+            break
+        previous = remaining
+        total += await apply_plan_api(settings, plan, progress=progress)
+    return total
 
 
 async def apply_plan(
@@ -52,4 +79,4 @@ async def apply_plan(
     return clicks
 
 
-__all__ = ["Action", "apply_plan", "compute_plan", "fetch_tracks"]
+__all__ = ["Action", "apply_plan", "apply_until_synced", "compute_plan", "fetch_tracks"]

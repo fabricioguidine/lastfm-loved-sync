@@ -39,7 +39,16 @@ uv run lastfm-loved-sync auth                  # opens a token URL; click "Yes, 
 uv run lastfm-loved-sync sync --min-plays 100 --apply
 ```
 
-`auth` saves a `LASTFM_SESSION_KEY` to `.env`. When that key is present, `sync --apply` uses signed `track.love`/`track.unlove` calls instead of the browser.
+`auth` saves a `LASTFM_SESSION_KEY` to `.env`. When that key is present, `sync --apply` uses signed `track.love`/`track.unlove` calls instead of the browser, and re-fetches and re-applies until the loved set actually matches the target — so a write that the API drops under load gets retried on the next round.
+
+When you're done, remove the saved credentials:
+
+```bash
+uv run lastfm-loved-sync logout            # delete the session key from .env
+uv run lastfm-loved-sync logout --purge    # also delete the API key and shared secret
+```
+
+To delete the API application itself, go to https://www.last.fm/api/accounts.
 
 ## Development
 
