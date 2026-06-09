@@ -53,16 +53,11 @@ def merge_m3u(path: Path, tracks: list[Track]) -> int:
     return len(added)
 
 
-async def build_artist_playlists(
-    settings: Settings,
-    out_dir: Path,
-    *,
-    tag: str = "bookmarked",
-    min_plays: int = 50,
-    progress: ProgressCb | None = None,
-) -> dict[str, int]:
-    """One playlist per favourite (tagged) artist, holding your tracks by that
-    artist at or above ``min_plays`` scrobbles."""
+async def artist_groups(
+    settings: Settings, *, tag: str = "bookmarked", min_plays: int = 50
+) -> list[tuple[str, list[Track]]]:
+    """(artist, tracks) for each favourite (tagged) artist, holding your tracks by
+    that artist at or above ``min_plays`` scrobbles."""
     async with LastfmClient(settings) as client:
         favourites = {name_key(n): n for n in await client.personal_tag_artists(tag)}
         top = await client.top_tracks(limit=1_000_000, min_plays=min_plays)
@@ -73,8 +68,40 @@ async def build_artist_playlists(
         display = favourites.get(name_key(track.artist))
         if display is not None:
             groups.setdefault(display, []).append(track)
+    return list(groups.items())
+
+
+async def genre_groups(
+    settings: Settings, *, min_plays: int = 50, top: int = 5
+) -> list[tuple[str, list[Track]]]:
+    """(genre, tracks) for the ``top`` genres by total plays, holding your tracks at
+    or above ``min_plays`` scrobbles. Genre is the artist's dominant Last.fm tag."""
+    async with LastfmClient(settings) as client:
+        tracks = await client.top_tracks(limit=1_000_000, min_plays=min_plays)
+        tag_cache: dict[str, str] = {}
+        groups: dict[str, list[Track]] = {}
+        for track in tracks:
+            if track.playcount < min_plays:
+                continue
+            key = track.artist.casefold()
+            if key not in tag_cache:
+                tag_cache[key] = await client.artist_top_tag(track.artist) or "untagged"
+            groups.setdefault(tag_cache[key], []).append(track)
+    ranked = sorted(groups, key=lambda g: sum(t.playcount for t in groups[g]), reverse=True)
+    return [(g, groups[g]) for g in ranked[:top]]
+
+
+async def build_artist_playlists(
+    settings: Settings,
+    out_dir: Path,
+    *,
+    tag: str = "bookmarked",
+    min_plays: int = 50,
+    progress: ProgressCb | None = None,
+) -> dict[str, int]:
+    """Write one local playlist per favourite artist (your tracks at/above the threshold)."""
     result: dict[str, int] = {}
-    for name, tracks in groups.items():
+    for name, tracks in await artist_groups(settings, tag=tag, min_plays=min_plays):
         added = merge_m3u(out_dir / f"artist-{_slug(name)}.m3u8", tracks)
         result[name] = added
         await _emit(progress, name, added)
@@ -89,23 +116,10 @@ async def build_genre_playlists(
     top: int = 5,
     progress: ProgressCb | None = None,
 ) -> dict[str, int]:
-    """One playlist for each of the ``top`` genres (by total plays), holding your
-    tracks at or above ``min_plays`` scrobbles. Genre is the artist's dominant tag."""
-    async with LastfmClient(settings) as client:
-        tracks = await client.top_tracks(limit=1_000_000, min_plays=min_plays)
-        tag_cache: dict[str, str] = {}
-        groups: dict[str, list[Track]] = {}
-        for track in tracks:
-            if track.playcount < min_plays:
-                continue
-            key = track.artist.casefold()
-            if key not in tag_cache:
-                tag_cache[key] = await client.artist_top_tag(track.artist) or "untagged"
-            groups.setdefault(tag_cache[key], []).append(track)
-    ranked = sorted(groups, key=lambda g: sum(t.playcount for t in groups[g]), reverse=True)
+    """Write one local playlist for each of the top genres (your tracks at/above the threshold)."""
     result: dict[str, int] = {}
-    for genre in ranked[:top]:
-        added = merge_m3u(out_dir / f"genre-{_slug(genre)}.m3u8", groups[genre])
+    for genre, tracks in await genre_groups(settings, min_plays=min_plays, top=top):
+        added = merge_m3u(out_dir / f"genre-{_slug(genre)}.m3u8", tracks)
         result[genre] = added
         await _emit(progress, genre, added)
     return result

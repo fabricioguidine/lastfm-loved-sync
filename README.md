@@ -74,6 +74,18 @@ uv run lastfm-loved-sync playlist loved                           # all your lov
 
 `playlist artists` sources favourites from a personal tag (default `bookmarked`, so run `bookmark --apply` first) and fills each playlist with your own plays of that artist. `playlist genres` groups your tracks by each artist's dominant Last.fm tag and keeps the top genres by play count. `playlist period` takes `--since` / `--until` dates (default Jan 1 this year through today). All write to `./playlists/` by default (`--out` to change).
 
+### Native Last.fm playlists
+
+The same genre and artist groupings can be pushed onto your Last.fm profile, driven through a logged-in browser session (Last.fm has no playlist API). First provide a session, either with `login` or by importing a browser cookie export:
+
+```bash
+uv run lastfm-loved-sync import-session cookies.json   # cookies.json: a browser cookie export for last.fm
+uv run lastfm-loved-sync playlist push-genres --top 8 --min-plays 50
+uv run lastfm-loved-sync playlist push-artists --min-plays 50
+```
+
+Free Last.fm accounts cap at **8 playlists** and roughly **250 tracks each**, so `push-genres`/`push-artists` replace existing playlists and keep the top 8 by play count; anything beyond the per-playlist cap stays only in the local `.m3u8` file.
+
 ## Architecture
 
 ```
@@ -85,9 +97,11 @@ src/lastfm_loved_sync/
   analysis.py     build the two-way love/unlove plan from a threshold
   sync.py         fetch + plan + apply (browser or converging API path)
   bookmarks.py    fetch + tag artists/albums above a threshold
-  playlists.py    generate local .m3u8 playlists (append-only on re-run)
+  playlists.py    genre/artist groupings and local .m3u8 writers
+  web_playlists.py  create/fill Last.fm playlists natively via a browser session
+  session.py      build a browser session from an exported cookies file
   api_apply.py    token-authorize flow and API plan application
-  browser.py      Playwright love-button automation
+  browser.py      Playwright love-button automation and session context
   cli.py          Typer commands;  tui.py  rich tables and prompts
   config.py       env-backed settings;  models.py  Track/Artist/Album;  normalize.py  identity keys
 ```
@@ -101,7 +115,7 @@ uv run pytest                 # unit + e2e
 uv run pytest -m "not e2e"    # skip the browser tests
 ```
 
-The e2e suite never touches a live account: the browser path runs against a mocked API and a local love-button fixture in a real Chromium, and the API path runs against a stateful in-memory Last.fm that deliberately drops the first write to prove the convergence and tag re-verify logic recovers.
+The e2e suite never touches a live account. The browser love path runs against a mocked API and a local love-button fixture in a real Chromium; the API path runs against a stateful in-memory Last.fm that deliberately drops the first write to prove the convergence and tag re-verify logic recovers; and the native-playlist path runs against route-mocked Last.fm endpoints to verify the create, rename and add requests.
 
 ## Notes
 

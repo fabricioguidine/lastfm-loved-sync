@@ -15,12 +15,16 @@ from .browser import save_login
 from .config import Settings
 from .models import Album, Artist
 from .playlists import (
+    artist_groups,
     build_artist_playlists,
     build_genre_playlists,
     build_loved_playlist,
     build_period_playlist,
+    genre_groups,
 )
+from .session import import_cookies
 from .sync import apply_plan, apply_until_synced, fetch_tracks
+from .web_playlists import push_playlists
 
 app = typer.Typer(
     add_completion=False,
@@ -54,6 +58,16 @@ def login() -> None:
     settings = Settings()
     path = asyncio.run(save_login(settings))
     tui.console.print(f"[green]Session saved to {path}[/green]")
+
+
+@app.command("import-session")
+def import_session(
+    cookies: Path = typer.Argument(..., help="Browser cookie export (JSON array) for last.fm"),
+) -> None:
+    """Build the browser session from an exported cookies file (no interactive login)."""
+    settings = Settings()
+    count = import_cookies(cookies, settings.storage_state)
+    tui.console.print(f"[green]Wrote {settings.storage_state} with {count} cookies.[/green]")
 
 
 def _persist_session_key(key: str, env_file: Path = Path(".env")) -> None:
@@ -276,6 +290,44 @@ def playlist_loved(
     settings = _settings()
     added = asyncio.run(build_loved_playlist(settings, out))
     tui.console.print(f"[green]Done: {added} loved tracks in {out}.[/green]")
+
+
+@playlist_app.command("push-genres")
+def playlist_push_genres(
+    min_plays: int = typer.Option(
+        50, "--min-plays", "-m", help="Tracks with at least this many plays"
+    ),
+    top: int = typer.Option(8, help="Number of top genres (free Last.fm caps at 8 playlists)"),
+) -> None:
+    """Create the top-genre playlists natively on your Last.fm profile (needs a session)."""
+    settings = _settings()
+
+    async def run() -> dict[str, int]:
+        groups = await genre_groups(settings, min_plays=min_plays, top=top)
+        return await push_playlists(settings, groups, replace=True, progress=_playlist_progress)
+
+    result = asyncio.run(run())
+    tui.console.print(f"[green]Pushed {len(result)} genre playlists to Last.fm.[/green]")
+
+
+@playlist_app.command("push-artists")
+def playlist_push_artists(
+    tag: str = typer.Option("bookmarked", help="Build a playlist for each artist with this tag"),
+    min_plays: int = typer.Option(
+        50, "--min-plays", "-m", help="Tracks with at least this many plays"
+    ),
+) -> None:
+    """Create per-favourite-artist playlists natively on your Last.fm profile (needs a session)."""
+    settings = _settings()
+
+    async def run() -> dict[str, int]:
+        groups = await artist_groups(settings, tag=tag, min_plays=min_plays)
+        return await push_playlists(settings, groups, replace=True, progress=_playlist_progress)
+
+    result = asyncio.run(run())
+    tui.console.print(
+        f"[green]Pushed {len(result)} artist playlists to Last.fm (capped at the 8 most).[/green]"
+    )
 
 
 __all__ = ["app"]
